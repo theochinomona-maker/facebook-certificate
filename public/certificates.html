@@ -146,9 +146,14 @@
                 Already Shared ✓
               </button>
             ` : `
-              <button class="btn btn-facebook" onclick="shareToFacebook(${cert.id})">
-                📘 Share to Facebook
-              </button>
+              <div style="display: flex; gap: 10px; flex-direction: column;">
+                <button class="btn btn-facebook" onclick="shareToFacebook(${cert.id})">
+                  📘 Share to Page
+                </button>
+                <button class="btn btn-primary" onclick="shareWithDialog(${cert.id}, '${cert.courseName.replace(/'/g, "\\'")}')">
+                  📤 Share to Feed
+                </button>
+              </div>
             `}
           </div>
         </div>
@@ -171,17 +176,88 @@
       const height = 700;
       const left = (screen.width - width) / 2;
       const top = (screen.height - height) / 2;
-      
+
       const authUrl = `/auth/facebook?certificateId=${certificateId}`;
       const popup = window.open(
-        authUrl, 
+        authUrl,
         'Facebook OAuth',
         `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
       );
-      
+
       if (!popup) {
         showError('Please enable popups for this site to use Facebook sharing.');
       }
+    }
+
+    // Share using Facebook Share Dialog (no page permissions needed!)
+    async function shareWithDialog(certificateId, courseName) {
+      const cert = learnerData.certificates.find(c => c.id === certificateId);
+      if (!cert) {
+        showError('Certificate not found');
+        return;
+      }
+
+      // Create the shareable certificate URL with Open Graph tags
+      const certificateUrl = `${window.location.origin}/share-certificate.html?id=${certificateId}`;
+
+      // Use Facebook Share Dialog - Facebook will scrape Open Graph tags from certificate page
+      const shareUrl = `https://www.facebook.com/dialog/share?` +
+        `app_id=1203244734963303&` +
+        `href=${encodeURIComponent(certificateUrl)}&` +
+        `display=popup&` +
+        `redirect_uri=${encodeURIComponent(window.location.origin + '/certificates.html?shared=' + certificateId)}`;
+
+      const width = 600;
+      const height = 700;
+      const left = (screen.width - width) / 2;
+      const top = (screen.height - height) / 2;
+
+      const popup = window.open(
+        shareUrl,
+        'Facebook Share',
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
+      );
+
+      if (!popup) {
+        showError('Please enable popups for this site to use Facebook sharing.');
+        return;
+      }
+
+      // Monitor for when user completes sharing
+      const checkPopup = setInterval(async () => {
+        if (popup.closed) {
+          clearInterval(checkPopup);
+
+          // Check if we got the shared parameter (Facebook redirected back)
+          const urlParams = new URLSearchParams(window.location.search);
+          const sharedCertId = urlParams.get('shared');
+
+          if (sharedCertId === certificateId.toString()) {
+            // Mark certificate as shared on server
+            try {
+              const response = await fetch(`/api/certificate/${certificateId}/mark-shared`, {
+                method: 'POST'
+              });
+
+              if (response.ok) {
+                showSuccess();
+                setTimeout(() => {
+                  loadCertificates();
+                  window.history.replaceState({}, document.title, '/certificates.html');
+                }, 1000);
+              }
+            } catch (error) {
+              console.error('Error marking as shared:', error);
+              // Still show success to user
+              showSuccess();
+              setTimeout(() => {
+                loadCertificates();
+                window.history.replaceState({}, document.title, '/certificates.html');
+              }, 1000);
+            }
+          }
+        }
+      }, 500);
     }
 
     async function loadFacebookPages() {

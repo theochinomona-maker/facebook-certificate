@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <!-- Background -->
+  <defs>
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#grad2)"/>
+
+  <!-- Border -->
+  <rect x="30" y="30" width="740" height="540" fill="none" stroke="white" stroke-width="3"/>
+  <rect x="40" y="40" width="720" height="520" fill="none" stroke="white" stroke-width="1"/>
+
+  <!-- Ornamental corners -->
+  <circle cx="60" cy="60" r="8" fill="white"/>
+  <circle cx="740" cy="60" r="8" fill="white"/>
+  <circle cx="60" cy="540" r="8" fill="white"/>
+  <circle cx="740" cy="540" r="8" fill="white"/>
+
+  <!-- Certificate Content -->
+  <text x="400" y="100" font-family="Georgia, serif" font-size="24" fill="white" text-anchor="middle" font-weight="bold">CERTIFICATE OF COMPLETION</text>
+
+  <text x="400" y="150" font-family="Arial, sans-serif" font-size="16" fill="white" text-anchor="middle" opacity="0.9">This is to certify that</text>
+
+  <text x="400" y="220" font-family="Georgia, serif" font-size="48" fill="white" text-anchor="middle" font-weight="bold">Thabo Molefe</text>
+  <line x1="200" y1="235" x2="600" y2="235" stroke="white" stroke-width="2"/>
+
+  <text x="400" y="280" font-family="Arial, sans-serif" font-size="16" fill="white" text-anchor="middle" opacity="0.9">has successfully completed</text>
+
+  <text x="400" y="340" font-family="Georgia, serif" font-size="36" fill="white" text-anchor="middle" font-weight="bold">Digital Marketing</text>
+  <text x="400" y="380" font-family="Georgia, serif" font-size="36" fill="white" text-anchor="middle" font-weight="bold">Fundamentals</text>
+
+  <text x="400" y="440" font-family="Arial, sans-serif" font-size="16" fill="white" text-anchor="middle" opacity="0.9">Completion Date: August 20, 2025</text>
+
+  <!-- Signature area -->
+  <text x="200" y="510" font-family="Brush Script MT, cursive" font-size="24" fill="white" text-anchor="middle">Speccon Team</text>
+  <line x1="120" y1="520" x2="280" y2="520" stroke="white" stroke-width="1"/>
+  <text x="200" y="540" font-family="Arial, sans-serif" font-size="12" fill="white" text-anchor="middle" opacity="0.8">Instructor</text>
+
+  <!-- Logo area -->
+  <circle cx="600" cy="500" r="40" fill="white" opacity="0.3"/>
+  <text x="600" y="510" font-family="Arial, sans-serif" font-size="32" fill="white" text-anchor="middle">📱</text>
+</svg>

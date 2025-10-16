@@ -11,17 +11,43 @@
     <header class="header">
       <h1>🎓 Speccon Learnership Platform</h1>
       <p class="subtitle">Certificate Sharing Demo</p>
-      <a href="/admin.html" class="btn btn-admin">Admin Dashboard</a>
+      <a href="/admin-login.html" class="btn btn-admin">Admin Login</a>
     </header>
 
     <main class="main-content">
       <div class="selection-intro">
-        <h2>Welcome! Select Your Profile</h2>
-        <p>Choose a learner profile to view and share certificates</p>
+        <h2>Welcome to Speccon Learnership!</h2>
+        <p>Earn certificates, track your progress, and share your achievements on Facebook</p>
       </div>
 
-      <div class="learner-grid" id="learnerGrid">
-        <div class="loading">Loading learners...</div>
+      <div class="signup-benefits" style="margin-top: 40px;">
+        <div class="benefit-item">
+          <div class="benefit-icon">🎓</div>
+          <h3>Learn & Grow</h3>
+          <p>Access quality courses and training programs</p>
+        </div>
+        <div class="benefit-item">
+          <div class="benefit-icon">🏆</div>
+          <h3>Get Certified</h3>
+          <p>Earn professional certificates for your achievements</p>
+        </div>
+        <div class="benefit-item">
+          <div class="benefit-icon">📱</div>
+          <h3>Share Success</h3>
+          <p>Showcase your certificates on Facebook</p>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 50px;">
+        <h3 style="margin-bottom: 20px; color: var(--text-dark);">Get Started</h3>
+        <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+          <a href="/signup.html" class="btn btn-primary btn-large" style="text-decoration: none;">
+            Create Account
+          </a>
+          <a href="/login.html" class="btn btn-secondary btn-large" style="text-decoration: none;">
+            Login
+          </a>
+        </div>
       </div>
     </main>
 
@@ -31,78 +57,7 @@
   </div>
 
   <script>
-    async function loadLearners() {
-      try {
-        const response = await fetch('/api/learners');
-        
-        if (!response.ok) {
-          throw new Error('Failed to load learners');
-        }
-        
-        const learners = await response.json();
-        displayLearners(learners);
-      } catch (error) {
-        console.error('Error loading learners:', error);
-        document.getElementById('learnerGrid').innerHTML = `
-          <div class="error-message">
-            <p>❌ Failed to load learners. Please refresh the page.</p>
-            <p class="error-details">${error.message}</p>
-          </div>
-        `;
-      }
-    }
-
-    function displayLearners(learners) {
-      const grid = document.getElementById('learnerGrid');
-      
-      if (learners.length === 0) {
-        grid.innerHTML = '<div class="no-data">No learners found.</div>';
-        return;
-      }
-      
-      grid.innerHTML = learners.map(learner => `
-        <div class="learner-card" onclick="selectLearner(${learner.id})">
-          <div class="learner-avatar">
-            ${learner.name.charAt(0).toUpperCase()}
-          </div>
-          <h3 class="learner-name">${learner.name}</h3>
-          <p class="learner-email">${learner.email}</p>
-          <button class="btn btn-primary">
-            View My Certificates →
-          </button>
-        </div>
-      `).join('');
-    }
-
-    async function selectLearner(learnerId) {
-      try {
-        const response = await fetch('/api/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ learnerId })
-        });
-        
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Failed to login');
-        }
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          window.location.href = '/certificates.html';
-        } else {
-          alert('Login failed. Please try again.');
-        }
-      } catch (error) {
-        console.error('Login error:', error);
-        alert('Error: ' + error.message);
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', loadLearners);
+    // No scripts needed for landing page
   </script>
 </body>
 </html>

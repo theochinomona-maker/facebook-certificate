@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const session = require('express-session');
 const axios = require('axios');
@@ -17,8 +19,9 @@ app.use(session({
   cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-const FACEBOOK_APP_ID = '1203244734963303';
-let FACEBOOK_APP_SECRET = '';
+const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID || '1203244734963303';
+const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET || '';
+const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 
 const learners = [
   {
@@ -126,12 +129,66 @@ app.post('/api/login', (req, res) => {
   });
 });
 
+// Get a single certificate by ID (for sharing)
+app.get('/api/certificate/:id', (req, res) => {
+  const certId = parseInt(req.params.id);
+  const certificate = certificates.find(c => c.id === certId);
+
+  if (!certificate) {
+    return res.status(404).json({ error: 'Certificate not found' });
+  }
+
+  res.json(certificate);
+});
+
+// Mark certificate as shared
+app.post('/api/certificate/:id/mark-shared', (req, res) => {
+  const certId = parseInt(req.params.id);
+  const certificate = certificates.find(c => c.id === certId);
+
+  if (!certificate) {
+    return res.status(404).json({ error: 'Certificate not found' });
+  }
+
+  certificate.shared = true;
+  certificate.sharedTimestamp = new Date().toISOString();
+  certificate.shareStatus = 'success';
+
+  shareActivity.unshift({
+    date: certificate.sharedTimestamp,
+    learnerName: certificate.learnerName,
+    courseName: certificate.courseName,
+    platform: 'Facebook',
+    status: 'success'
+  });
+
+  res.json({ success: true, certificate });
+});
+
 app.get('/api/my-certificates', (req, res) => {
   if (!req.session.learnerId) {
     return res.status(401).json({ error: 'Not logged in' });
   }
-  
-  const userCertificates = certificates.filter(cert => cert.learnerId === req.session.learnerId);
+
+  let userCertificates = certificates.filter(cert => cert.learnerId === req.session.learnerId);
+
+  // If new user has no certificates, create a demo one
+  if (userCertificates.length === 0 && req.session.learnerId > 4) {
+    const newCert = {
+      id: certificates.length + 1,
+      learnerId: req.session.learnerId,
+      learnerName: req.session.learnerName,
+      courseName: 'Web Development Bootcamp',
+      imageFile: 'cert4.png',
+      completionDate: new Date().toISOString().split('T')[0],
+      shared: false,
+      sharedTimestamp: null,
+      shareStatus: null
+    };
+    certificates.push(newCert);
+    userCertificates = [newCert];
+  }
+
   res.json({
     learner: {
       id: req.session.learnerId,
@@ -151,10 +208,10 @@ app.get('/auth/facebook', (req, res) => {
   
   req.session.certificateId = certificateId;
   
-  const redirectUri = `http://localhost:${PORT}/auth/facebook/callback`;
+  const redirectUri = `${PUBLIC_URL}/auth/facebook/callback`;
   const scope = 'pages_manage_posts,pages_read_engagement,public_profile';
   const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FACEBOOK_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code`;
-  
+
   res.redirect(authUrl);
 });
 
@@ -171,13 +228,10 @@ app.get('/auth/facebook/callback', async (req, res) => {
   
   try {
     if (!FACEBOOK_APP_SECRET) {
-      FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET || '';
-      if (!FACEBOOK_APP_SECRET) {
-        return res.redirect('/certificates.html?error=Facebook App Secret not configured. Please set FACEBOOK_APP_SECRET environment variable.');
-      }
+      return res.redirect('/certificates.html?error=Facebook App Secret not configured. Please set FACEBOOK_APP_SECRET environment variable.');
     }
     
-    const redirectUri = `http://localhost:${PORT}/auth/facebook/callback`;
+    const redirectUri = `${PUBLIC_URL}/auth/facebook/callback`;
     const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${FACEBOOK_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${FACEBOOK_APP_SECRET}&code=${code}`;
     
     const tokenResponse = await axios.get(tokenUrl);
@@ -240,7 +294,7 @@ app.post('/api/share-to-facebook', async (req, res) => {
     
     const pageAccessToken = selectedPage.access_token;
     const caption = `Hi! I just completed ${certificate.courseName} from Speccon! 🎓✨`;
-    const imageUrl = `http://localhost:${PORT}/certificates/${certificate.imageFile}`;
+    const imageUrl = `${PUBLIC_URL}/certificates/${certificate.imageFile}`;
     
     const postResponse = await axios.post(
       `https://graph.facebook.com/v18.0/${pageId}/photos`,
@@ -291,21 +345,75 @@ app.post('/api/share-to-facebook', async (req, res) => {
   }
 });
 
-app.get('/api/admin/analytics', (req, res) => {
+// Admin credentials (in production, use a database with hashed passwords)
+const ADMIN_CREDENTIALS = {
+  username: 'admin',
+  password: 'admin123' // In production, hash this!
+};
+
+// Middleware to check admin authentication
+function requireAdminAuth(req, res, next) {
+  if (!req.session.isAdmin) {
+    return res.status(401).json({ error: 'Unauthorized. Please login as admin.' });
+  }
+  next();
+}
+
+// Admin login endpoint
+app.post('/api/admin/login', (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+    req.session.isAdmin = true;
+    req.session.adminUsername = username;
+    res.json({
+      success: true,
+      message: 'Admin login successful'
+    });
+  } else {
+    res.status(401).json({ error: 'Invalid username or password' });
+  }
+});
+
+// Check admin session
+app.get('/api/admin/check-session', (req, res) => {
+  if (req.session.isAdmin) {
+    res.json({
+      authenticated: true,
+      username: req.session.adminUsername
+    });
+  } else {
+    res.json({ authenticated: false });
+  }
+});
+
+// Admin logout
+app.post('/api/admin/logout', (req, res) => {
+  req.session.isAdmin = false;
+  req.session.adminUsername = null;
+  res.json({ success: true });
+});
+
+// Protected admin analytics endpoint
+app.get('/api/admin/analytics', requireAdminAuth, (req, res) => {
   const totalCertificates = certificates.length;
   const sharedCertificates = certificates.filter(c => c.shared).length;
   const shareRate = totalCertificates > 0 ? ((sharedCertificates / totalCertificates) * 100).toFixed(1) : 0;
-  
+
   const successfulShares = shareActivity.filter(a => a.status === 'success').length;
   const failedShares = shareActivity.filter(a => a.status === 'failed').length;
   const totalShares = successfulShares + failedShares;
   const successRate = totalShares > 0 ? ((successfulShares / totalShares) * 100).toFixed(1) : 100;
-  
+
   const learnerStats = learners.map(learner => {
     const learnerCerts = certificates.filter(c => c.learnerId === learner.id);
     const learnerShared = learnerCerts.filter(c => c.shared).length;
     const learnerShareRate = learnerCerts.length > 0 ? ((learnerShared / learnerCerts.length) * 100).toFixed(1) : 0;
-    
+
     return {
       name: learner.name,
       totalCertificates: learnerCerts.length,
@@ -313,9 +421,9 @@ app.get('/api/admin/analytics', (req, res) => {
       shareRate: learnerShareRate
     };
   });
-  
+
   const recentActivity = shareActivity.slice(0, 10);
-  
+
   res.json({
     summary: {
       totalCertificates,
@@ -332,6 +440,187 @@ app.get('/api/admin/analytics', (req, res) => {
   });
 });
 
+// Manual signup endpoint
+app.post('/api/signup', (req, res) => {
+  const { name, email, phone } = req.body;
+
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Name and email are required' });
+  }
+
+  // Check if email already exists
+  const existingLearner = learners.find(l => l.email.toLowerCase() === email.toLowerCase());
+  if (existingLearner) {
+    return res.status(400).json({ error: 'An account with this email already exists' });
+  }
+
+  // Create new learner
+  const newLearner = {
+    id: learners.length + 1,
+    name: name,
+    email: email,
+    phone: phone || null,
+    facebookId: null,
+    createdAt: new Date().toISOString()
+  };
+
+  learners.push(newLearner);
+
+  // Log them in
+  req.session.learnerId = newLearner.id;
+  req.session.learnerName = newLearner.name;
+  req.session.learnerEmail = newLearner.email;
+
+  res.json({
+    success: true,
+    learner: {
+      id: newLearner.id,
+      name: newLearner.name,
+      email: newLearner.email
+    }
+  });
+});
+
+// Facebook signup OAuth flow
+app.get('/auth/facebook-signup', (req, res) => {
+  const redirectUri = `${PUBLIC_URL}/auth/facebook-signup/callback`;
+  const scope = 'email,public_profile';
+  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FACEBOOK_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code`;
+
+  res.redirect(authUrl);
+});
+
+app.get('/auth/facebook-signup/callback', async (req, res) => {
+  const { code, error, error_description } = req.query;
+
+  if (error) {
+    return res.send(`
+      <html>
+        <body>
+          <script>
+            window.opener.postMessage({
+              type: 'facebook-signup-error',
+              message: '${error_description || error}'
+            }, window.location.origin);
+            window.close();
+          </script>
+        </body>
+      </html>
+    `);
+  }
+
+  if (!code) {
+    return res.send(`
+      <html>
+        <body>
+          <script>
+            window.opener.postMessage({
+              type: 'facebook-signup-error',
+              message: 'No authorization code received'
+            }, window.location.origin);
+            window.close();
+          </script>
+        </body>
+      </html>
+    `);
+  }
+
+  try {
+    if (!FACEBOOK_APP_SECRET) {
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener.postMessage({
+                type: 'facebook-signup-error',
+                message: 'Facebook App Secret not configured'
+              }, window.location.origin);
+              window.close();
+            </script>
+          </body>
+        </html>
+      `);
+    }
+
+    const redirectUri = `${PUBLIC_URL}/auth/facebook-signup/callback`;
+    const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${FACEBOOK_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${FACEBOOK_APP_SECRET}&code=${code}`;
+
+    const tokenResponse = await axios.get(tokenUrl);
+    const accessToken = tokenResponse.data.access_token;
+
+    // Get user profile from Facebook
+    const profileResponse = await axios.get(`https://graph.facebook.com/v18.0/me?fields=id,name,email&access_token=${accessToken}`);
+    const profile = profileResponse.data;
+
+    // Check if user already exists by Facebook ID or email
+    let learner = learners.find(l => l.facebookId === profile.id);
+
+    if (!learner && profile.email) {
+      learner = learners.find(l => l.email.toLowerCase() === profile.email.toLowerCase());
+    }
+
+    if (learner) {
+      // Update existing learner with Facebook ID if not set
+      if (!learner.facebookId) {
+        learner.facebookId = profile.id;
+      }
+    } else {
+      // Create new learner
+      learner = {
+        id: learners.length + 1,
+        name: profile.name,
+        email: profile.email || `facebook_${profile.id}@example.com`,
+        phone: null,
+        facebookId: profile.id,
+        createdAt: new Date().toISOString()
+      };
+      learners.push(learner);
+    }
+
+    // Log them in
+    req.session.learnerId = learner.id;
+    req.session.learnerName = learner.name;
+    req.session.learnerEmail = learner.email;
+
+    // Send success message to parent window
+    res.send(`
+      <html>
+        <body>
+          <script>
+            window.opener.postMessage({
+              type: 'facebook-signup-success',
+              learner: {
+                id: ${learner.id},
+                name: '${learner.name}',
+                email: '${learner.email}'
+              }
+            }, window.location.origin);
+            window.close();
+          </script>
+        </body>
+      </html>
+    `);
+
+  } catch (error) {
+    console.error('Facebook Signup Error:', error.response?.data || error.message);
+    const errorMessage = error.response?.data?.error?.message || error.message || 'Failed to sign up with Facebook';
+
+    res.send(`
+      <html>
+        <body>
+          <script>
+            window.opener.postMessage({
+              type: 'facebook-signup-error',
+              message: '${errorMessage}'
+            }, window.location.origin);
+            window.close();
+          </script>
+        </body>
+      </html>
+    `);
+  }
+});
+
 app.get('/api/logout', (req, res) => {
   req.session.destroy();
   res.json({ success: true });
@@ -340,7 +629,7 @@ app.get('/api/logout', (req, res) => {
 app.get('/api/config', (req, res) => {
   res.json({
     appId: FACEBOOK_APP_ID,
-    hasAppSecret: !!FACEBOOK_APP_SECRET || !!process.env.FACEBOOK_APP_SECRET
+    hasAppSecret: !!FACEBOOK_APP_SECRET
   });
 });
 
@@ -350,16 +639,30 @@ app.listen(PORT, () => {
   console.log('='.repeat(60));
   console.log(`Server running at: http://localhost:${PORT}`);
   console.log(`Home Page: http://localhost:${PORT}/index.html`);
+  console.log(`Signup Page: http://localhost:${PORT}/signup.html`);
   console.log(`Admin Dashboard: http://localhost:${PORT}/admin.html`);
   console.log('='.repeat(60));
-  
-  if (process.env.FACEBOOK_APP_SECRET) {
-    FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
-    console.log('✓ Facebook App Secret loaded from environment variable');
+  console.log('Configuration:');
+  console.log(`  App ID: ${FACEBOOK_APP_ID}`);
+
+  if (FACEBOOK_APP_SECRET) {
+    console.log('  ✓ App Secret: Configured');
   } else {
-    console.log('⚠ WARNING: FACEBOOK_APP_SECRET not set!');
-    console.log('  Set it via: set FACEBOOK_APP_SECRET=your_secret_here');
+    console.log('  ✗ App Secret: NOT SET (Required for OAuth)');
+    console.log('');
+    console.log('⚠️  WARNING: FACEBOOK_APP_SECRET not configured!');
+    console.log('  Facebook OAuth will not work without it.');
+    console.log('');
+    console.log('  To fix this:');
+    console.log('  1. Create a .env file in project root');
+    console.log('  2. Add: FACEBOOK_APP_SECRET=your_secret_here');
+    console.log('  3. Restart the server');
+    console.log('');
+    console.log('  Or set it temporarily:');
+    console.log('    Windows CMD: set FACEBOOK_APP_SECRET=your_secret && npm start');
+    console.log('    PowerShell:  $env:FACEBOOK_APP_SECRET="your_secret"; npm start');
+    console.log('    Mac/Linux:   export FACEBOOK_APP_SECRET=your_secret && npm start');
   }
-  
+
   console.log('='.repeat(60));
 });

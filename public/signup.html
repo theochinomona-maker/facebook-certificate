@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up - Speccon Learnership</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>🎓 Join Speccon Learnership</h1>
+      <p class="subtitle">Create your account to start earning certificates</p>
+    </header>
+
+    <main class="main-content">
+      <div class="signup-container">
+        <div class="signup-intro">
+          <h2>Sign Up with Facebook</h2>
+          <p>Connect your Facebook account to create your learner profile and share your achievements!</p>
+        </div>
+
+        <div class="signup-benefits">
+          <div class="benefit-item">
+            <div class="benefit-icon">🎯</div>
+            <h3>Track Your Progress</h3>
+            <p>Monitor your learning journey and completed courses</p>
+          </div>
+          <div class="benefit-item">
+            <div class="benefit-icon">🏆</div>
+            <h3>Earn Certificates</h3>
+            <p>Receive professional certificates for completed courses</p>
+          </div>
+          <div class="benefit-item">
+            <div class="benefit-icon">📢</div>
+            <h3>Share Achievements</h3>
+            <p>Easily share your certificates on Facebook</p>
+          </div>
+        </div>
+
+        <div class="signup-form">
+          <h3>Create Your Account</h3>
+
+          <div class="oauth-section">
+            <button onclick="signupWithFacebook()" class="btn btn-facebook btn-large">
+              📘 Sign Up with Facebook
+            </button>
+            <p class="oauth-info">
+              We'll use your Facebook profile to create your learner account.
+              Your information is secure and we'll never post without your permission.
+            </p>
+          </div>
+
+          <div class="divider">
+            <span>OR</span>
+          </div>
+
+          <form id="manualSignupForm" class="manual-signup-form">
+            <div class="form-group">
+              <label for="fullName">Full Name</label>
+              <input type="text" id="fullName" name="fullName" required placeholder="Enter your full name">
+            </div>
+
+            <div class="form-group">
+              <label for="email">Email Address</label>
+              <input type="email" id="email" name="email" required placeholder="Enter your email">
+            </div>
+
+            <div class="form-group">
+              <label for="phone">Phone Number (Optional)</label>
+              <input type="tel" id="phone" name="phone" placeholder="Enter your phone number">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-large">
+              Create Account
+            </button>
+          </form>
+
+          <div class="signup-footer">
+            <p>Already have an account? <a href="/index.html" class="link">Sign in here</a></p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>&copy; 2025 Speccon. Demo Prototype for Facebook Integration.</p>
+    </footer>
+  </div>
+
+  <!-- Success Modal -->
+  <div id="successModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🎉 Account Created!</h2>
+        <button class="modal-close" onclick="closeSuccessModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="success-icon">✓</div>
+        <p class="success-message">Your learner account has been created successfully!</p>
+        <p id="welcomeMessage" style="margin-bottom: 20px;"></p>
+        <button onclick="goToCertificates()" class="btn btn-primary">View My Certificates</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Modal -->
+  <div id="errorModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>⚠️ Error</h2>
+        <button class="modal-close" onclick="closeErrorModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="error-message" id="errorMessage"></p>
+        <button onclick="closeErrorModal()" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function signupWithFacebook() {
+      const width = 600;
+      const height = 700;
+      const left = (screen.width - width) / 2;
+      const top = (screen.height - height) / 2;
+
+      const authUrl = '/auth/facebook-signup';
+      const popup = window.open(
+        authUrl,
+        'Facebook OAuth Signup',
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
+      );
+
+      if (!popup) {
+        showError('Please enable popups for this site to use Facebook sign up.');
+        return;
+      }
+
+      // Listen for messages from the popup
+      window.addEventListener('message', handleAuthMessage);
+    }
+
+    function handleAuthMessage(event) {
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data.type === 'facebook-signup-success') {
+        showSuccess(event.data.learner);
+      } else if (event.data.type === 'facebook-signup-error') {
+        showError(event.data.message);
+      }
+    }
+
+    document.getElementById('manualSignupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = {
+        name: document.getElementById('fullName').value,
+        email: document.getElementById('email').value,
+        phone: document.getElementById('phone').value
+      };
+
+      try {
+        const response = await fetch('/api/signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to create account');
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          showSuccess(data.learner);
+        } else {
+          throw new Error(data.message || 'Failed to create account');
+        }
+      } catch (error) {
+        console.error('Signup error:', error);
+        showError(error.message);
+      }
+    });
+
+    function showSuccess(learner) {
+      document.getElementById('welcomeMessage').textContent = `Welcome, ${learner.name}!`;
+      document.getElementById('successModal').classList.add('show');
+    }
+
+    function closeSuccessModal() {
+      document.getElementById('successModal').classList.remove('show');
+    }
+
+    function goToCertificates() {
+      window.location.href = '/certificates.html';
+    }
+
+    function showError(message) {
+      document.getElementById('errorMessage').textContent = message;
+      document.getElementById('errorModal').classList.add('show');
+    }
+
+    function closeErrorModal() {
+      document.getElementById('errorModal').classList.remove('show');
+    }
+
+    // Check URL params for OAuth callback
+    function checkUrlParams() {
+      const urlParams = new URLSearchParams(window.location.search);
+
+      if (urlParams.has('success') && urlParams.get('success') === 'true') {
+        const name = urlParams.get('name');
+        showSuccess({ name: decodeURIComponent(name) });
+        window.history.replaceState({}, document.title, '/signup.html');
+      }
+
+      if (urlParams.has('error')) {
+        const error = urlParams.get('error');
+        showError(decodeURIComponent(error));
+        window.history.replaceState({}, document.title, '/signup.html');
+      }
+    }
+
+    // Modal click outside to close
+    window.addEventListener('click', (e) => {
+      const successModal = document.getElementById('successModal');
+      const errorModal = document.getElementById('errorModal');
+
+      if (e.target === successModal) {
+        closeSuccessModal();
+      }
+      if (e.target === errorModal) {
+        closeErrorModal();
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', checkUrlParams);
+  </script>
+</body>
+</html>

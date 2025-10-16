@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Speccon Learnership</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>🎓 Speccon Learnership</h1>
+      <p class="subtitle">Login to your account</p>
+    </header>
+
+    <main class="main-content">
+      <div class="signup-container">
+        <div class="signup-intro">
+          <h2>Select Your Profile</h2>
+          <p>Choose your learner profile to continue</p>
+        </div>
+
+        <div class="learner-grid" id="learnerGrid">
+          <div class="loading">Loading learners...</div>
+        </div>
+
+        <div class="signup-footer" style="margin-top: 30px;">
+          <p>Don't have an account? <a href="/signup.html" class="link">Sign up here</a></p>
+          <p style="margin-top: 10px;"><a href="/index.html" class="link">← Back to Home</a></p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>&copy; 2025 Speccon. Demo Prototype for Facebook Integration.</p>
+    </footer>
+  </div>
+
+  <script>
+    async function loadLearners() {
+      try {
+        const response = await fetch('/api/learners');
+
+        if (!response.ok) {
+          throw new Error('Failed to load learners');
+        }
+
+        const learners = await response.json();
+        displayLearners(learners);
+      } catch (error) {
+        console.error('Error loading learners:', error);
+        document.getElementById('learnerGrid').innerHTML = `
+          <div class="error-message">
+            <p>❌ Failed to load learners. Please refresh the page.</p>
+            <p class="error-details">${error.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    function displayLearners(learners) {
+      const grid = document.getElementById('learnerGrid');
+
+      if (learners.length === 0) {
+        grid.innerHTML = '<div class="no-data">No learners found.</div>';
+        return;
+      }
+
+      grid.innerHTML = learners.map(learner => `
+        <div class="learner-card" onclick="selectLearner(${learner.id})">
+          <div class="learner-avatar">
+            ${learner.name.charAt(0).toUpperCase()}
+          </div>
+          <h3 class="learner-name">${learner.name}</h3>
+          <p class="learner-email">${learner.email}</p>
+          <button class="btn btn-primary">
+            Login →
+          </button>
+        </div>
+      `).join('');
+    }
+
+    async function selectLearner(learnerId) {
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ learnerId })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to login');
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          window.location.href = '/certificates.html';
+        } else {
+          alert('Login failed. Please try again.');
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        alert('Error: ' + error.message);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadLearners);
+  </script>
+</body>
+</html>
