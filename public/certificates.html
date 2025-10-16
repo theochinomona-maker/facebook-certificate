@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Certificates - Speccon Learnership</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-content">
+        <div>
+          <h1>📜 My Certificates</h1>
+          <p class="user-greeting" id="userGreeting">Welcome back!</p>
+        </div>
+        <div class="header-actions">
+          <a href="/index.html" class="btn btn-secondary">← Back to Home</a>
+          <button onclick="logout()" class="btn btn-secondary">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="certificates-container">
+        <div id="certificatesGrid" class="certificates-grid">
+          <div class="loading">Loading certificates...</div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>&copy; 2025 Speccon. Demo Prototype for Facebook Integration.</p>
+    </footer>
+  </div>
+
+  <div id="pagesModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Select Facebook Page</h2>
+        <button class="modal-close" onclick="closePagesModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Choose which Facebook Page to post your certificate to:</p>
+        <div id="pagesList" class="pages-list">
+          <div class="loading">Loading your pages...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="successModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🎉 Success!</h2>
+        <button class="modal-close" onclick="closeSuccessModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="success-icon">✓</div>
+        <p class="success-message">Your certificate has been successfully shared to Facebook!</p>
+        <button onclick="closeSuccessModal()" class="btn btn-primary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="errorModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>⚠️ Error</h2>
+        <button class="modal-close" onclick="closeErrorModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="error-message" id="errorMessage"></p>
+        <button onclick="closeErrorModal()" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentCertificateId = null;
+    let learnerData = null;
+
+    async function loadCertificates() {
+      try {
+        const response = await fetch('/api/my-certificates');
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            window.location.href = '/index.html';
+            return;
+          }
+          throw new Error('Failed to load certificates');
+        }
+        
+        const data = await response.json();
+        learnerData = data;
+        displayLearner(data.learner);
+        displayCertificates(data.certificates);
+      } catch (error) {
+        console.error('Error loading certificates:', error);
+        document.getElementById('certificatesGrid').innerHTML = `
+          <div class="error-message">
+            <p>❌ Failed to load certificates. Please try again.</p>
+            <p class="error-details">${error.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    function displayLearner(learner) {
+      document.getElementById('userGreeting').textContent = `Welcome, ${learner.name}!`;
+    }
+
+    function displayCertificates(certificates) {
+      const grid = document.getElementById('certificatesGrid');
+      
+      if (certificates.length === 0) {
+        grid.innerHTML = `
+          <div class="no-certificates">
+            <p>📭 You don't have any certificates yet.</p>
+            <p class="hint">Complete courses to earn certificates!</p>
+          </div>
+        `;
+        return;
+      }
+      
+      grid.innerHTML = certificates.map(cert => `
+        <div class="certificate-card">
+          <div class="certificate-image-container">
+            <img src="/certificates/${cert.imageFile}" 
+                 alt="${cert.courseName} Certificate" 
+                 class="certificate-image"
+                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23667eea%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2224%22%3ECertificate Image%3C/text%3E%3C/svg%3E'">
+            ${cert.shared ? `
+              <div class="shared-badge">
+                ✓ Shared on ${formatDate(cert.sharedTimestamp)}
+              </div>
+            ` : ''}
+          </div>
+          <div class="certificate-details">
+            <h3 class="certificate-title">${cert.courseName}</h3>
+            <p class="certificate-date">Completed: ${formatDate(cert.completionDate)}</p>
+            <p class="certificate-learner">${cert.learnerName}</p>
+            ${cert.shared ? `
+              <button class="btn btn-shared" disabled>
+                Already Shared ✓
+              </button>
+            ` : `
+              <button class="btn btn-facebook" onclick="shareToFacebook(${cert.id})">
+                📘 Share to Facebook
+              </button>
+            `}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    }
+
+    function shareToFacebook(certificateId) {
+      currentCertificateId = certificateId;
+      const width = 600;
+      const height = 700;
+      const left = (screen.width - width) / 2;
+      const top = (screen.height - height) / 2;
+      
+      const authUrl = `/auth/facebook?certificateId=${certificateId}`;
+      const popup = window.open(
+        authUrl, 
+        'Facebook OAuth',
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
+      );
+      
+      if (!popup) {
+        showError('Please enable popups for this site to use Facebook sharing.');
+      }
+    }
+
+    async function loadFacebookPages() {
+      try {
+        const response = await fetch('/api/facebook-pages');
+        
+        if (!response.ok) {
+          throw new Error('Failed to load Facebook pages');
+        }
+        
+        const data = await response.json();
+        displayPages(data.pages);
+      } catch (error) {
+        console.error('Error loading pages:', error);
+        document.getElementById('pagesList').innerHTML = `
+          <div class="error-message">
+            <p>Failed to load your Facebook pages.</p>
+            <p class="error-details">${error.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    function displayPages(pages) {
+      const pagesList = document.getElementById('pagesList');
+      
+      if (pages.length === 0) {
+        pagesList.innerHTML = `
+          <div class="no-data">
+            <p>No Facebook Pages found.</p>
+            <p>You need a Facebook Page to post certificates.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      pagesList.innerHTML = pages.map(page => `
+        <div class="page-item" onclick="selectPage('${page.id}')">
+          <div class="page-info">
+            <h4>${page.name}</h4>
+            <p class="page-category">${page.category || 'Page'}</p>
+          </div>
+          <button class="btn btn-primary btn-sm">Select →</button>
+        </div>
+      `).join('');
+    }
+
+    async function selectPage(pageId) {
+      if (!currentCertificateId) {
+        showError('No certificate selected');
+        return;
+      }
+      
+      closePagesModal();
+      
+      const loadingOverlay = document.createElement('div');
+      loadingOverlay.className = 'loading-overlay';
+      loadingOverlay.innerHTML = '<div class="loading-spinner">Posting to Facebook...</div>';
+      document.body.appendChild(loadingOverlay);
+      
+      try {
+        const response = await fetch('/api/share-to-facebook', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            certificateId: currentCertificateId,
+            pageId: pageId
+          })
+        });
+        
+        document.body.removeChild(loadingOverlay);
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to share certificate');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showSuccess();
+          setTimeout(() => {
+            loadCertificates();
+          }, 1000);
+        } else {
+          throw new Error(data.message || 'Failed to share certificate');
+        }
+        
+      } catch (error) {
+        if (document.body.contains(loadingOverlay)) {
+          document.body.removeChild(loadingOverlay);
+        }
+        console.error('Share error:', error);
+        showError(error.message);
+      }
+    }
+
+    function showPagesModal() {
+      document.getElementById('pagesModal').classList.add('show');
+      loadFacebookPages();
+    }
+
+    function closePagesModal() {
+      document.getElementById('pagesModal').classList.remove('show');
+    }
+
+    function showSuccess() {
+      document.getElementById('successModal').classList.add('show');
+    }
+
+    function closeSuccessModal() {
+      document.getElementById('successModal').classList.remove('show');
+      currentCertificateId = null;
+    }
+
+    function showError(message) {
+      document.getElementById('errorMessage').textContent = message;
+      document.getElementById('errorModal').classList.add('show');
+    }
+
+    function closeErrorModal() {
+      document.getElementById('errorModal').classList.remove('show');
+    }
+
+    async function logout() {
+      try {
+        await fetch('/api/logout');
+        window.location.href = '/index.html';
+      } catch (error) {
+        console.error('Logout error:', error);
+        window.location.href = '/index.html';
+      }
+    }
+
+    function checkUrlParams() {
+      const urlParams = new URLSearchParams(window.location.search);
+      
+      if (urlParams.has('pages') && urlParams.get('pages') === 'true') {
+        showPagesModal();
+        window.history.replaceState({}, document.title, '/certificates.html');
+      }
+      
+      if (urlParams.has('error')) {
+        const error = urlParams.get('error');
+        showError(decodeURIComponent(error));
+        window.history.replaceState({}, document.title, '/certificates.html');
+      }
+    }
+
+    window.addEventListener('click', (e) => {
+      const pagesModal = document.getElementById('pagesModal');
+      const errorModal = document.getElementById('errorModal');
+      const successModal = document.getElementById('successModal');
+      
+      if (e.target === pagesModal) {
+        closePagesModal();
+      }
+      if (e.target === errorModal) {
+        closeErrorModal();
+      }
+      if (e.target === successModal) {
+        closeSuccessModal();
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadCertificates();
+      checkUrlParams();
+    });
+  </script>
+</body>
+</html>
