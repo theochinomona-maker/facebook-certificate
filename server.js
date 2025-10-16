@@ -10,14 +10,6 @@ const PORT = 3000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
-
-app.use(session({
-  secret: 'facebook-cert-demo-secret-key-2025',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
-}));
 
 const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID || '1203244734963303';
 const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET || '';
@@ -102,6 +94,85 @@ const shareActivity = [
     status: 'success'
   }
 ];
+
+// Server-side rendered certificate page MUST come before static files
+app.get('/share-certificate.html', (req, res) => {
+  const certId = parseInt(req.query.id);
+  const certificate = certificates.find(c => c.id === certId);
+
+  if (!certificate) {
+    return res.status(404).send('Certificate not found');
+  }
+
+  const imageUrl = `${PUBLIC_URL}/certificates/${certificate.imageFile}`;
+  const pageUrl = `${PUBLIC_URL}/share-certificate.html?id=${certId}`;
+  const description = `Hi! I just completed ${certificate.courseName} with Speccon! 🎓✨`;
+
+  // Send HTML with pre-filled Open Graph tags for Facebook scraper
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${certificate.courseName} - ${certificate.learnerName}</title>
+
+  <!-- Open Graph Meta Tags for Facebook (Pre-filled for scraper) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Speccon Learnership Platform">
+  <meta property="og:title" content="${certificate.courseName}">
+  <meta property="og:description" content="${description}">
+  <meta property="og:image" content="${imageUrl}">
+  <meta property="og:url" content="${pageUrl}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:type" content="image/png">
+
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .share-container { max-width: 800px; margin: 50px auto; text-align: center; }
+    .certificate-display { background: white; border-radius: 12px; padding: 30px; box-shadow: var(--shadow-lg); margin-bottom: 30px; }
+    .certificate-display img { width: 100%; max-width: 600px; border-radius: 8px; box-shadow: var(--shadow-md); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>🎓 Speccon Learnership</h1>
+      <p class="subtitle">Certificate Achievement</p>
+    </header>
+
+    <main class="main-content">
+      <div class="share-container">
+        <div class="certificate-display">
+          <h2>${certificate.courseName}</h2>
+          <p style="color: var(--text-light); margin-bottom: 20px;">Awarded to ${certificate.learnerName}</p>
+          <img src="/certificates/${certificate.imageFile}" alt="${certificate.courseName} Certificate">
+          <p style="color: var(--text-light); margin-top: 20px;">Completed on ${new Date(certificate.completionDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        </div>
+
+        <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+          <a href="/certificates.html" class="btn btn-primary">View All My Certificates</a>
+          <a href="/index.html" class="btn btn-secondary">Back to Home</a>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>&copy; 2025 Speccon. Demo Prototype for Facebook Integration.</p>
+    </footer>
+  </div>
+</body>
+</html>`);
+});
+
+app.use(express.static('public'));
+
+app.use(session({
+  secret: 'facebook-cert-demo-secret-key-2025',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
+}));
 
 app.get('/api/learners', (req, res) => {
   res.json(learners);
